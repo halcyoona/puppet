@@ -1,0 +1,155 @@
+First thing is to create a master on a virtual machine in this case I am creating a virtual machine in a docker container.
+sudo docker pull ubuntu
+
+Now create the puppet master container 
+sudo docker run --name puppet-master -it ubuntu
+
+Run the container.
+sudo docker run puppet-master
+
+Run the command
+sudo docker exec -it puppet-master bash
+apt update
+apt upgrade
+
+Other essential tools
+apt install inetutils-ping net-tools vim wget -y 
+
+Now add the repository of the puppet.
+wget https://apt.puppetlabs.com/puppet6-release-bionic.deb
+sudo dpkg -i puppet6-release-bionic.deb
+sudo apt update
+
+
+Now convert the container into image so we can use it later on.
+sudo docker commit puppet-container puppet-6
+sudo docker images
+
+
+Now install the puppetserver
+sudo apt-get install puppetserver
+
+Now java is also installed and it takes alot of memory.
+java -version
+vi /etc/default/puppetserver
+
+Change JAVA_ARGS the miniming memory 2 giga bytes to 64mb and maximum 512mb from 2g
+Xms2g -> Xms64mb
+Xmx2g -> Xms512mb
+
+Now we create our own CA.
+/opt/puppetlabs/bin/puppetserver ca setup
+
+Now start the puppet server.
+service puppetserver start
+Check the puppet server.
+service puppetserver status
+
+Now check the port listening.
+netstat -nutlp
+
+Now add the path of the puppet into bashrc
+copy the path of the puppetserver(/opt/puppetlabs/bin)
+Now edit the bashrc file.
+vi ~/.bashrc 
+PATH=$PATH:/opt/puppetlabs/bin
+
+Now run again the bashrc
+source ~/.bashrc
+
+Now come to the puppet and check user.
+puppet resource user
+
+puppet resource user root
+
+puppet resource host
+
+puppet resource package
+
+Information about your system.
+factor -p
+
+if you want to check the hostname
+factor -p | grep hostname
+
+If you want to check the fully qualified domain name(fqdn e.q = gmail.com)
+factor -p | grep fqdn
+
+
+Now start the  puppet code file.
+cd /temp
+vi test01.pp 
+
+file {'/temp/config-example':
+    ensure => 'file',
+    mode => '0664',
+    owner => 'root',
+    group => 'root',
+    content => 'Hello world \n',
+}
+
+Now check it.
+cat test01.pp
+
+Now apply the puppet for this file for master.
+puppet apply test01.pp
+
+To check the file mode.
+ls -lh 
+
+Now if we change the file mode 0664 to 0644 
+vi test01.pp
+0664 => 0644
+
+Now apply the setting 
+puppet apply test01.pp
+
+ls -lh 
+
+Now if someone change the mode 
+chmode config-example 400
+
+ls -lh 
+
+puppet apply test01.pp 
+
+ls -lh 
+
+Now we change the Hello world to the hostname of this machine we can get hostname from factor and use it directly in our puppet file.
+vi test01.pp
+
+file {'/temp/config-example':
+    ensure => 'file',
+    mode => '0664',
+    owner => 'root',
+    group => 'root',
+    content => 'Hello ${hostname} \n',
+}
+
+puppet apply test01.pp
+
+
+Now I want to install apache2 install and run on the machine.Now along with the file I need a service apache2.
+vi test01.pp
+
+service{'apache2':
+    ensure => 'running'
+}
+
+But first we need this package to be installed on our machine so Install the package first.
+vi test01.pp
+
+package{'apache2':
+    ensure => 'installed'
+}
+
+service{'apache2':
+    ensure => 'running',
+    require => Package['apache2']
+}
+
+puppet apply test01.pp
+
+netstat -nutlp
+
+service apache2 status
