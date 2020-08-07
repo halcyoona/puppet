@@ -1,0 +1,169 @@
+sudo docker --name puppet-agent01 -it  puppet-6
+
+sudo docker start puppet-agent01 
+
+sudo docker exec -it puppet-agent01 bash
+
+Add the same repository but install diffent package.
+
+apt update
+apt install puppet-agent
+
+IF docker do not run properly on your system then do this.
+sudo docker systemctl stop docker
+
+update the iptables
+sudo iptables -t nat F
+
+down the docker interface which talk to the other dockers.
+sudo ifconfig docker0 down
+
+Now delete the docker0 interface.
+sudo brctl delbr docker0
+
+Now restart the docker.
+sudo systemctl start docker 
+
+If you have internet problem in container do above stuff.
+
+Now add the path into bashrc.
+
+echo "$PATH:/opt/puppetlabs/bin"
+
+echo '$PATH:/opt/puppetlabs/bin'
+
+echo 'PATH=$PATH:/opt/puppetlabs/bin' >> ~/.bashrc
+
+source ~/.bashrc
+
+
+Now communication between puppet-master and puppet-agent01.
+check on both ipaddress.
+ifconfig
+
+puppet master and agent communicate on their fqdn.
+factor -p | grep fqdn 
+
+ping google.com
+
+nslookup google.com
+
+
+Now copy the master fqdn and run ping.
+ping (fqdn master)
+
+this is only for docker.
+Now mapping fqdn to ip can not be done because dns server is out side of the machine. So we map the fqdn to ip address manually.
+vi /etc/hosts
+
+now add the ip address of the puppet master in the hosts like if puppet-master have ip address 172.17.0.2
+172.17.0.2     fqdn master
+
+Now ping the fqdn master.
+ping (fqdn master)
+
+Now agent01 need a certificate but agent01 don't do it by his own. So master give agent01 a certificate.
+Now come to the puppet-master and run the command and  add the certificate by editing some change.
+vi /etc/puppetlabs/puppet/puppet.conf
+
+at the end of the file do this.
+autosign = true
+
+service puppetserver restart
+
+Now come the agent01 and test the server with fqdn.
+puppet agent --test  --server (master fqdn)
+
+Now all is set now we from master send the manifest to the agent01. i.e the state in which when agent01 connect to the master agent have to be in this state.
+Now come to the master. And go to in the below direct and create a file named as init.pp. init.pp is type of constructor in which you define diffent classes with in diffent number of resources. 
+cd /etc/puppetlabs/code/environments/production/manifests/
+touch init.pp
+vi init.pp
+class testagent{
+    file {'/temp/config-example':
+        ensure => 'file',
+        mode => '0664',
+        owner => 'root',
+        group => 'root',
+        content => 'Hello from the server .... agent01 \n',
+    }
+}
+
+Now create another file site.pp. In this site.pp you define rules for the classes you define in init.pp. Map the agents on classes. suppose agent01 take class 1, 2 ,3 and agent02 take classes 1, 4, 5.
+
+node default{
+    include testagent
+}
+
+Now come to the agent01. and execute the following command to check the server.
+puppet agent --test  --server (master fqdn)
+
+Now we don't want to execute this command on every agent so we want to automate it.So install cron
+apt install cron
+
+edit the above command in the cron file. 
+vi /etc/cron.d/agent.cron
+* * * * * echo "Running agent ----------------------"  >> /var/log/cron.log  2>&1
+* * * * * puppet agent --test  --server (master fqdn) >> /var/log/cron.log 2>&1
+
+2>&1 means that you have to put the standard output and error both in this file.
+Create the log file.
+touch /var/log/cron.log 
+tell cron to execute this file.
+crontab /etc/cron.d/agent.cron 
+
+now run the cron.
+cron
+
+Now tail the log file.
+tail -f /var/log/cron.log 
+
+
+Now there is a problem cron  run differently not taking something from bash. we added our path in bash for puppet but now we have to give full path.
+vi /etc/cron.d/agent.cron
+* * * * * echo "Running agent ----------------------"  >> /var/log/cron.log  2>&1
+* * * * * /opt/puppetlabs/bin/puppet agent --test  --server (master fqdn) >> /var/log/cron.log 2>&1
+
+
+Now come to the virtual machine and create the template.
+sudo docker commit puppet-agent01 puppet-agent
+
+Now see the images.
+sudo docker images
+
+sudo docker run --name puppet-agent02 -it puppet-agent
+
+sudo docker start puppet-agent02
+
+Now agent 2 is running.
+But we have to do 2 things in the puppet-agent02 just because of the docker.
+
+add the fqdn of the server in the host.
+vi /etc/hosts
+172.17.0.3 fqdn master
+
+After this run cron.
+cron
+
+
+Now come to the puppet master and edit init.pp
+vi init.pp
+
+class apache2{
+    package{'apache2':
+    ensure => 'installed'
+    }
+
+    service{'apache2':
+    ensure => true,
+    enable => true,
+    require => Package['apache2']
+    }
+}
+
+Now open site.pp.
+
+node default{
+    include testagent
+    include apache2
+}
