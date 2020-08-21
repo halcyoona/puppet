@@ -42,14 +42,14 @@ Now we create our own CA.
 
 Now start the puppet server.
 service puppetserver start
+
 Check the puppet server.
 service puppetserver status
 
 Now check the port listening.
 netstat -nutlp
 
-Now add the path of the puppet into bashrc
-copy the path of the puppetserver(/opt/puppetlabs/bin)
+Now add the path of the puppet into bashrc. Copy the path of the puppetserver(/opt/puppetlabs/bin)
 Now edit the bashrc file.
 vi ~/.bashrc 
 PATH=$PATH:/opt/puppetlabs/bin
@@ -67,17 +67,18 @@ puppet resource host
 puppet resource package
 
 Information about your system.
-factor -p
+facter -p
 
 if you want to check the hostname
-factor -p | grep hostname
+facter -p | grep hostname
 
 If you want to check the fully qualified domain name(fqdn e.q = gmail.com)
-factor -p | grep fqdn
+facter -p | grep fqdn
 
 
 Now start the  puppet code file.
-cd /temp
+cd /tmp
+touch test01.pp
 vi test01.pp 
 
 file {'/temp/config-example':
@@ -88,7 +89,7 @@ file {'/temp/config-example':
     content => 'Hello world \n',
 }
 
-Now check it.
+To check the code written in file above use cat command.
 cat test01.pp
 
 Now apply the puppet for this file for master.
@@ -107,7 +108,7 @@ puppet apply test01.pp
 ls -lh 
 
 Now if someone change the mode 
-chmode config-example 400
+chmod -R 400 config-example 
 
 ls -lh 
 
