@@ -1,0 +1,265 @@
+In this blog, I will deploy the Puppet on Azure virtual machine. First thing you have to do is take a look my this blog to know how to create a virtual using command line.
+Create a virtual machine for Puppet master using following command:
+az vm create --resource-group halcyoona-group --name master --image UbuntuLTS --generate-ssh-keys --output json --verbose
+
+you will get this output:
+
+Use existing SSH public key file: /home/halcyoona/.ssh/id_rsa.pub
+{- Finished ..
+  "fqdns": "",
+  "id": "/subscriptions/95623de4-e1df-4c06-9954-bd66314b4bd0/resourceGroups/halcyoona-group/providers/Microsoft.Compute/virtualMachines/master",
+  "location": "eastus",
+  "macAddress": "00-22-48-20-91-D8",
+  "powerState": "VM running",
+  "privateIpAddress": "10.0.0.5",
+  "publicIpAddress": "13.72.73.153",
+  "resourceGroup": "halcyoona-group",
+  "zones": ""
+}
+
+Now using publicIpAddress, ssh into your master using below command:
+ssh halcyoona@13.72.73.153
+
+
+Now add the repository of the puppet.
+wget https://apt.puppetlabs.com/puppet6-release-bionic.deb
+sudo dpkg -i puppet6-release-bionic.deb
+sudo apt update
+
+
+Now install the puppetserver in the Puppet master virtual machine:
+sudo apt-get install puppetserver
+
+Now java is also installed and it takes alot of memory and it's totally optional.
+java -version
+vi /etc/default/puppetserver
+
+Open the file puppetserver and change JAVA_ARGS the miniming memory 2 giga bytes to 64mb and maximum 512mb from 2g.
+Xms2g -> Xms64mb
+Xmx2g -> Xms512mb
+
+
+Now we create our own CA with uisng following command:
+/opt/puppetlabs/bin/puppetserver ca setup
+
+Output:
+Generation succeeded. Find your files in /home/halcyoona/.puppetlabs/etc/puppet/ssl/ca
+
+
+Start the puppet server with using following command:
+sudo service puppetserver start
+
+Check the puppet server using following command:
+service puppetserver status
+
+Check the port listening.
+netstat -nutlp
+
+Now add the path of the puppet into bashrc. Copy the path of the puppetserver(/opt/puppetlabs/bin)
+Edit the bashrc file using vim editor using following command:
+vi ~/.bashrc 
+PATH=$PATH:/opt/puppetlabs/bin
+
+
+Now run again the bashrc, to get the immediate effect of the changes above.
+source ~/.bashrc
+
+Now come to the puppet and check user.
+puppet resource user
+In output you will get list of users.If you want specific user just mention the user name also as did below:
+puppet resource user root
+you will get this output:
+user { 'root':
+  ensure   => 'present',
+  comment  => 'root',
+  gid      => 0,
+  home     => '/root',
+  provider => 'useradd',
+  shell    => '/bin/bash',
+  uid      => 0,
+}
+
+To check host resource just type the below command: 
+puppet resource host
+
+output:
+host { 'ip6-allhosts':
+  ensure   => 'present',
+  ip       => 'ff02::3',
+  provider => 'parsed',
+  target   => '/etc/hosts',
+}
+host { 'ip6-allnodes':
+  ensure   => 'present',
+  ip       => 'ff02::1',
+  provider => 'parsed',
+  target   => '/etc/hosts',
+}
+host { 'ip6-allrouters':
+  ensure   => 'present',
+  ip       => 'ff02::2',
+  provider => 'parsed',
+  target   => '/etc/hosts',
+}
+host { 'ip6-localhost':
+  ensure       => 'present',
+  host_aliases => ['ip6-loopback'],
+  ip           => '::1',
+  provider     => 'parsed',
+  target       => '/etc/hosts',
+}
+host { 'ip6-localnet':
+  ensure   => 'present',
+  ip       => 'fe00::0',
+  provider => 'parsed',
+  target   => '/etc/hosts',
+}
+host { 'ip6-mcastprefix':
+  ensure   => 'present',
+  ip       => 'ff00::0',
+  provider => 'parsed',
+  target   => '/etc/hosts',
+}
+host { 'localhost':
+  ensure   => 'present',
+  ip       => '127.0.0.1',
+  provider => 'parsed',
+  target   => '/etc/hosts',
+}
+
+To get the information about the package resource type the below command in terminal:
+puppet resource package
+
+
+To check the information about your system command is given below:
+facter -p
+
+if you want to check the hostname, write the below command in terminal:
+facter -p | grep hostname
+
+output:
+2020-08-20 04:10:47.030974 WARN  puppetlabs.facter - skipping external facts for "/home/halcyoona/.puppetlabs/opt/puppet/cache/facts.d": No such file or directory
+  hostname => "master",
+
+
+If you want to check the fully qualified domain name(fqdn e.q = gmail.com), write the following command:
+facter -p | grep fqdn
+
+output:
+020-08-20 04:34:02.071476 WARN  puppetlabs.facter - skipping external facts for "/home/halcyoona/.puppetlabs/opt/puppet/cache/facts.d": No such file or directory
+  fqdn => "master.grutjxrblrfujbnsj0rhcceohg.bx.internal.cloudapp.net",
+
+Started 
+Now go to /tmp directory and create the file in /tmp the and write the code.
+
+cd /tmp
+touch test01.pp
+vi test01.pp 
+
+Write the following code in the test01.pp file.
+
+file {'/tmp/config-example':
+    ensure => 'file',
+    mode => '0664',
+    owner => 'root',
+    group => 'root',
+    content => 'Hello world \n',
+}
+
+To check the code written in file above use cat command.
+cat test01.pp
+
+Now apply the puppet for this file for master.
+puppet apply test01.pp
+
+output:
+Notice: Compiled catalog for master.grutjxrblrfujbnsj0rhcceohg.bx.internal.cloudapp.net in environment production in 0.01 seconds
+Notice: /Stage[main]/Main/File[/tmp/config-example]/owner: owner changed 'halcyoona' to 'root'
+Notice: /Stage[main]/Main/File[/tmp/config-example]/group: group changed 'halcyoona' to 'root'
+Notice: Applied catalog in 0.02 seconds
+
+
+To check the file mode.
+ls -lh | grep config-example
+
+Now if we change the file mode 0664 to 0644, then check what happened: 
+vi test01.pp
+0664 => 0644
+
+
+Now apply the Puppet setting using following command:
+puppet apply test01.pp
+
+output:
+Notice: Compiled catalog for master.grutjxrblrfujbnsj0rhcceohg.bx.internal.cloudapp.net in environment production in 0.01 seconds
+Notice: /Stage[main]/Main/File[/tmp/config-example]/mode: mode changed '0664' to '0644'
+Notice: Applied catalog in 0.06 seconds
+
+You can see only changes are shown in the output.
+
+Now check the mode of the file config-example using the following command:
+ls -lh | grep config-example
+
+
+Now if someone change the mode using following command: 
+chmod -R 400 config-example 
+
+Now check the mode of the file config-example using the following command:
+ls -lh | grep config-example
+
+Apply the Puppet setting again.
+puppet apply test01.pp 
+
+output:
+Notice: Compiled catalog for master.grutjxrblrfujbnsj0rhcceohg.bx.internal.cloudapp.net in environment production in 0.01 seconds
+Notice: /Stage[main]/Main/File[/tmp/config-example]/mode: mode changed '0400' to '0644'
+Notice: Applied catalog in 0.02 seconds
+
+You will see the file mode is changed by someone and now back to the setting according to over file.
+
+Now we change the Hello world to the hostname of this machine we can get hostname from factor and use it directly in our puppet file.
+vi test01.pp
+
+file {'/temp/config-example':
+    ensure => 'file',
+    mode => '0664',
+    owner => 'root',
+    group => 'root',
+    content => 'Hello ${hostname} \n',
+}
+
+Now apply the Puppet setting using following command:
+puppet apply test01.pp
+
+Output:
+Notice: Compiled catalog for master.grutjxrblrfujbnsj0rhcceohg.bx.internal.cloudapp.net in environment production in 0.01 seconds
+Notice: /Stage[main]/Main/File[/tmp/config-example]/content: content changed '{md5}432e1465b459cdc185c4aa650c457a49' to '{md5}1994cc447435603428ba0036937da940'
+Notice: Applied catalog in 0.07 seconds
+
+
+
+Now I want to install apache2 install and run on the machine.Now along with the file I need a service apache2. But first we need this package to be installed on our machine so Install the package first.
+
+vi test01.pp
+
+package{'apache2':
+    ensure => 'installed'
+}
+
+service{'apache2':
+    ensure => 'running',
+    require => Package['apache2']
+}
+
+Apply the Puppet setting:
+puppet apply test01.pp
+
+output:
+Notice: Compiled catalog for master.grutjxrblrfujbnsj0rhcceohg.bx.internal.cloudapp.net in environment production in 0.56 seconds
+Notice: /Stage[main]/Main/Package[apache2]/ensure: created
+Notice: Applied catalog in 9.84 seconds
+
+Now check the apache2 service with the following command:
+service apache2 status
+
+You will see apache2 is installed and now running as well.
